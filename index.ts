@@ -17,6 +17,7 @@ export type SishClientConfig = {
 interface SishClientEvents {
   ready: (type: "TCP" | "HTTPS", tunnel: string) => void;
   log: (data: string) => void;
+  close: (exitCode: number) => void;
 }
 
 export interface SishClient {
@@ -35,6 +36,8 @@ export class SishClient extends EventEmitter {
   private _tunnelURL?: string;
 
   private _ready = false;
+
+  private process: Subprocess<"ignore", "pipe", "inherit">;
 
   get tunnelURL() {
     return this._tunnelURL;
@@ -75,13 +78,22 @@ export class SishClient extends EventEmitter {
       sish_host,
     ];
 
-    const process = Bun.spawn(spawn_args);
-    this.processStdout(process);
+    this.process = Bun.spawn(spawn_args, {
+      onExit: (process) => {
+        this.emit("close", process.exitCode || 0);
+      },
+    });
+
+    this.processStdout();
   }
 
-  private async processStdout(process: Subprocess) {
-    if (!(process.stdout instanceof ReadableStream)) return;
-    const stdout = process.stdout as unknown as ReadableStream;
+  disconnect() {
+    this.process.kill(0);
+  }
+
+  private async processStdout() {
+    if (!(this.process.stdout instanceof ReadableStream)) return;
+    const stdout = this.process.stdout as unknown as ReadableStream;
     const decoder = new TextDecoder();
 
     const ANSIStyleRegex =
