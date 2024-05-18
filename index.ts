@@ -88,7 +88,8 @@ export class SishClient extends EventEmitter {
   }
 
   disconnect() {
-    this.process.kill(0);
+    this.process.kill();
+    this._tunnelURL = undefined;
   }
 
   private async processStdout() {
